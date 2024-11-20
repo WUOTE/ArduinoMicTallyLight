@@ -46,6 +46,12 @@ const static int tallyTable[] PROGMEM = {20, 20, 20, 20, 20, 20, 20, 20, 20, 20,
 */
 int sizeOftallyTable = sizeof(tallyTable) / sizeof(tallyTable[0]);
 
+// USB Serial Control Variables
+const byte numChars = 32;
+char receivedChars[numChars]; // an array to store the received data
+boolean newData = false;
+String currentUSBMode = "off";
+
 void setup()
 {
   Serial.begin(115200);
@@ -59,19 +65,28 @@ void setup()
   ArduinoCloud.begin(ArduinoIoTPreferredConnection);
   setDebugMessageLevel(2);
   ArduinoCloud.printDebugInfo();
+
+  Serial.println("<Arduino is ready>");
 }
 
 void loop()
 {
   ArduinoCloud.update();
+
+  // Check for USB Serial commands
+  recvWithEndMarker();
+  processUSBMode();
+
   unsigned long currentMillis = millis();
 
   if (currentMillis - previousMillis >= interval)
   {
-
     previousMillis = currentMillis;
 
-    if (tallyMode == "idle" || tallyMode == "hot")
+    // Prioritize USB mode if set, otherwise use Cloud mode
+    String activeMode = (currentUSBMode != "off") ? currentUSBMode : tallyMode;
+
+    if (activeMode == "idle" || activeMode == "hot")
     {
       static int currentIndex = 0;
 
@@ -87,37 +102,115 @@ void loop()
   }
 }
 
-void onTallyModeChange()
+// USB Serial Command Reception
+void recvWithEndMarker()
 {
-  Serial.print("Mode changed to: ");
-  Serial.println(tallyMode);
+  static byte ndx = 0;
+  char endMarker = '\n';
+  char rc;
 
-  if (tallyMode == "off")
+  while (Serial.available() > 0 && newData == false)
+  {
+    rc = Serial.read();
+
+    if (rc != endMarker)
+    {
+      receivedChars[ndx] = rc;
+      ndx++;
+      if (ndx >= numChars)
+      {
+        ndx = numChars - 1;
+      }
+    }
+    else
+    {
+      receivedChars[ndx] = '\0';
+      ndx = 0;
+      currentUSBMode = receivedChars;
+      Serial.println(currentUSBMode);
+      newData = true;
+    }
+  }
+}
+
+// Process USB Mode
+void processUSBMode()
+{
+  if (!newData)
+    return;
+
+  Serial.print("Setting USB mode: ");
+  Serial.println(currentUSBMode);
+
+  // Directly set mode similar to onTallyModeChange()
+  if (currentUSBMode == "off")
   {
     digitalWrite(dirPin, HIGH);
     digitalWrite(brakePin, HIGH);
     analogWrite(pwmPin, 0);
   }
-  else if (tallyMode == "idle")
+  else if (currentUSBMode == "idle")
   {
     digitalWrite(dirPin, LOW);
     digitalWrite(brakePin, LOW);
   }
-  else if (tallyMode == "hot")
+  else if (currentUSBMode == "hot")
   {
     digitalWrite(dirPin, HIGH);
     digitalWrite(brakePin, LOW);
   }
-  else if (tallyMode == "red")
+  else if (currentUSBMode == "red")
   {
     digitalWrite(dirPin, HIGH);
     digitalWrite(brakePin, LOW);
     analogWrite(pwmPin, 255);
   }
-  else if (tallyMode == "white")
+  else if (currentUSBMode == "white")
   {
     digitalWrite(dirPin, LOW);
     digitalWrite(brakePin, LOW);
     analogWrite(pwmPin, 255);
+  }
+
+  newData = false;
+}
+
+// Keep the existing onTallyModeChange() function from new_cloud.ino
+void onTallyModeChange()
+{
+  Serial.print("Cloud mode changed to: ");
+  Serial.println(tallyMode);
+
+  // Only change mode if USB mode is not actively overriding
+  if (currentUSBMode == "off")
+  {
+    if (tallyMode == "off")
+    {
+      digitalWrite(dirPin, HIGH);
+      digitalWrite(brakePin, HIGH);
+      analogWrite(pwmPin, 0);
+    }
+    else if (tallyMode == "idle")
+    {
+      digitalWrite(dirPin, LOW);
+      digitalWrite(brakePin, LOW);
+    }
+    else if (tallyMode == "hot")
+    {
+      digitalWrite(dirPin, HIGH);
+      digitalWrite(brakePin, LOW);
+    }
+    else if (tallyMode == "red")
+    {
+      digitalWrite(dirPin, HIGH);
+      digitalWrite(brakePin, LOW);
+      analogWrite(pwmPin, 255);
+    }
+    else if (tallyMode == "white")
+    {
+      digitalWrite(dirPin, LOW);
+      digitalWrite(brakePin, LOW);
+      analogWrite(pwmPin, 255);
+    }
   }
 }
