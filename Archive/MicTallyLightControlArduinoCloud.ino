@@ -60,163 +60,163 @@ String currentUSBMode = "off";
 
 void setup()
 {
-  Serial.begin(115200);
-  delay(1500);
+    Serial.begin(115200);
+    delay(1500);
 
-  initProperties();
-  pinMode(dirPin, OUTPUT);
-  pinMode(pwmPin, OUTPUT);
-  pinMode(brakePin, OUTPUT);
+    initProperties();
+    pinMode(dirPin, OUTPUT);
+    pinMode(pwmPin, OUTPUT);
+    pinMode(brakePin, OUTPUT);
 
-  ArduinoCloud.begin(ArduinoIoTPreferredConnection);
-  setDebugMessageLevel(2);
-  ArduinoCloud.printDebugInfo();
+    ArduinoCloud.begin(ArduinoIoTPreferredConnection);
+    setDebugMessageLevel(2);
+    ArduinoCloud.printDebugInfo();
 
-  Serial.println("<Arduino is ready>");
+    Serial.println("<Arduino is ready>");
 }
 
 void loop()
 {
-  ArduinoCloud.update();
+    ArduinoCloud.update();
 
-  // Check for USB Serial commands
-  recvWithEndMarker();
-  processUSBMode();
+    // Check for USB Serial commands
+    recvWithEndMarker();
+    processUSBMode();
 
-  unsigned long currentMillis = millis();
+    unsigned long currentMillis = millis();
 
-  if (currentMillis - previousMillis >= interval)
-  {
-    previousMillis = currentMillis;
-
-    // Prioritize USB mode if set, otherwise use Cloud mode
-    String activeMode = (currentUSBMode != "off") ? currentUSBMode : tallyMode;
-
-    if (activeMode == "idle" || activeMode == "hot")
+    if (currentMillis - previousMillis >= interval)
     {
-      static int currentIndex = 0;
+        previousMillis = currentMillis;
 
-      // Read and map the current intensity value
-      int lightIntensity = tallyTable[currentIndex];
+        // Prioritize USB mode if set, otherwise use Cloud mode
+        String activeMode = (currentUSBMode != "off") ? currentUSBMode : tallyMode;
 
-      // Set light intensity from the lookup table
-      analogWrite(pwmPin, lightIntensity);
+        if (activeMode == "idle" || activeMode == "hot")
+        {
+            static int currentIndex = 0;
 
-      // Increment index and wrap around
-      currentIndex = (currentIndex + 1) % sizeOftallyTable;
+            // Read and map the current intensity value
+            int lightIntensity = tallyTable[currentIndex];
+
+            // Set light intensity from the lookup table
+            analogWrite(pwmPin, lightIntensity);
+
+            // Increment index and wrap around
+            currentIndex = (currentIndex + 1) % sizeOftallyTable;
+        }
     }
-  }
 }
 
 // USB Serial Command Reception
 void recvWithEndMarker()
 {
-  static byte ndx = 0;
-  char endMarker = '\n';
-  char rc;
+    static byte ndx = 0;
+    char endMarker = '\n';
+    char rc;
 
-  while (Serial.available() > 0 && newData == false)
-  {
-    rc = Serial.read();
+    while (Serial.available() > 0 && newData == false)
+    {
+        rc = Serial.read();
 
-    if (rc != endMarker)
-    {
-      receivedChars[ndx] = rc;
-      ndx++;
-      if (ndx >= numChars)
-      {
-        ndx = numChars - 1;
-      }
+        if (rc != endMarker)
+        {
+            receivedChars[ndx] = rc;
+            ndx++;
+            if (ndx >= numChars)
+            {
+                ndx = numChars - 1;
+            }
+        }
+        else
+        {
+            receivedChars[ndx] = '\0';
+            ndx = 0;
+            currentUSBMode = receivedChars;
+            Serial.println(currentUSBMode);
+            newData = true;
+        }
     }
-    else
-    {
-      receivedChars[ndx] = '\0';
-      ndx = 0;
-      currentUSBMode = receivedChars;
-      Serial.println(currentUSBMode);
-      newData = true;
-    }
-  }
 }
 
 // Process USB Mode
 void processUSBMode()
 {
-  if (!newData)
-    return;
+    if (!newData)
+        return;
 
-  Serial.print("Setting USB mode: ");
-  Serial.println(currentUSBMode);
+    Serial.print("Setting USB mode: ");
+    Serial.println(currentUSBMode);
 
-  // Directly set mode similar to onTallyModeChange()
-  if (currentUSBMode == "off")
-  {
-    digitalWrite(dirPin, HIGH);
-    digitalWrite(brakePin, HIGH);
-    analogWrite(pwmPin, 0);
-  }
-  else if (currentUSBMode == "idle")
-  {
-    digitalWrite(dirPin, LOW);
-    digitalWrite(brakePin, LOW);
-  }
-  else if (currentUSBMode == "hot")
-  {
-    digitalWrite(dirPin, HIGH);
-    digitalWrite(brakePin, LOW);
-  }
-  else if (currentUSBMode == "red")
-  {
-    digitalWrite(dirPin, HIGH);
-    digitalWrite(brakePin, LOW);
-    analogWrite(pwmPin, 255);
-  }
-  else if (currentUSBMode == "white")
-  {
-    digitalWrite(dirPin, LOW);
-    digitalWrite(brakePin, LOW);
-    analogWrite(pwmPin, 255);
-  }
+    // Directly set mode similar to onTallyModeChange()
+    if (currentUSBMode == "off")
+    {
+        digitalWrite(dirPin, HIGH);
+        digitalWrite(brakePin, HIGH);
+        analogWrite(pwmPin, 0);
+    }
+    else if (currentUSBMode == "idle")
+    {
+        digitalWrite(dirPin, LOW);
+        digitalWrite(brakePin, LOW);
+    }
+    else if (currentUSBMode == "hot")
+    {
+        digitalWrite(dirPin, HIGH);
+        digitalWrite(brakePin, LOW);
+    }
+    else if (currentUSBMode == "red")
+    {
+        digitalWrite(dirPin, HIGH);
+        digitalWrite(brakePin, LOW);
+        analogWrite(pwmPin, 255);
+    }
+    else if (currentUSBMode == "white")
+    {
+        digitalWrite(dirPin, LOW);
+        digitalWrite(brakePin, LOW);
+        analogWrite(pwmPin, 255);
+    }
 
-  newData = false;
+    newData = false;
 }
 
 // Handle commands from Arduino Cloud Dashboard
 void onTallyModeChange()
 {
-  Serial.print("Cloud mode changed to: ");
-  Serial.println(tallyMode);
+    Serial.print("Cloud mode changed to: ");
+    Serial.println(tallyMode);
 
-  // Only change mode if USB mode is not actively overriding
-  if (currentUSBMode == "off")
-  {
-    if (tallyMode == "off")
+    // Only change mode if USB mode is not actively overriding
+    if (currentUSBMode == "off")
     {
-      digitalWrite(dirPin, HIGH);
-      digitalWrite(brakePin, HIGH);
-      analogWrite(pwmPin, 0);
+        if (tallyMode == "off")
+        {
+            digitalWrite(dirPin, HIGH);
+            digitalWrite(brakePin, HIGH);
+            analogWrite(pwmPin, 0);
+        }
+        else if (tallyMode == "idle")
+        {
+            digitalWrite(dirPin, LOW);
+            digitalWrite(brakePin, LOW);
+        }
+        else if (tallyMode == "hot")
+        {
+            digitalWrite(dirPin, HIGH);
+            digitalWrite(brakePin, LOW);
+        }
+        else if (tallyMode == "red")
+        {
+            digitalWrite(dirPin, HIGH);
+            digitalWrite(brakePin, LOW);
+            analogWrite(pwmPin, 255);
+        }
+        else if (tallyMode == "white")
+        {
+            digitalWrite(dirPin, LOW);
+            digitalWrite(brakePin, LOW);
+            analogWrite(pwmPin, 255);
+        }
     }
-    else if (tallyMode == "idle")
-    {
-      digitalWrite(dirPin, LOW);
-      digitalWrite(brakePin, LOW);
-    }
-    else if (tallyMode == "hot")
-    {
-      digitalWrite(dirPin, HIGH);
-      digitalWrite(brakePin, LOW);
-    }
-    else if (tallyMode == "red")
-    {
-      digitalWrite(dirPin, HIGH);
-      digitalWrite(brakePin, LOW);
-      analogWrite(pwmPin, 255);
-    }
-    else if (tallyMode == "white")
-    {
-      digitalWrite(dirPin, LOW);
-      digitalWrite(brakePin, LOW);
-      analogWrite(pwmPin, 255);
-    }
-  }
 }
