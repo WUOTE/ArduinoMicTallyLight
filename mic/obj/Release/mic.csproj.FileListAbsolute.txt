@@ -1,8 +1,0 @@
-C:\Users\Alex\source\repos\mic\mic\bin\Release\mic.exe.config
-C:\Users\Alex\source\repos\mic\mic\bin\Release\mic.exe
-C:\Users\Alex\source\repos\mic\mic\bin\Release\mic.pdb
-C:\Users\Alex\source\repos\mic\mic\obj\Release\mic.csproj.AssemblyReference.cache
-C:\Users\Alex\source\repos\mic\mic\obj\Release\mic.csproj.SuggestedBindingRedirects.cache
-C:\Users\Alex\source\repos\mic\mic\obj\Release\mic.csproj.CoreCompileInputs.cache
-C:\Users\Alex\source\repos\mic\mic\obj\Release\mic.exe
-C:\Users\Alex\source\repos\mic\mic\obj\Release\mic.pdb
