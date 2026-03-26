@@ -1,6 +1,6 @@
 ## About
 
-Control and drive your Yellowtec Mika Mic Tally Light using an Arduino and Adafruit Motor Shield via Stream Deck.
+Control and drive your microphone tally light (compatible with Yellowtec mika series boom arms) using an Arduino and a Motor Shield.
 This project was inspired by excellent [Avital Pekker's blogpost](https://avital.ca/notes/a-closer-look-at-apples-breathing-light) and work done by [Quant Girl's on two-piece normal distribution](https://quantgirl.blog/two-piece-normal/) implementation in python.
 
 ## Preparation
