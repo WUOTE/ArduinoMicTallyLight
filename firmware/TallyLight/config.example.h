@@ -1,0 +1,15 @@
+#pragma once
+// Copy to config.local.h in this folder. Do not commit real credentials.
+#define TALLY_WIFI_SSID ""
+#define TALLY_WIFI_PASSWORD ""
+// Optional bearer token for HTTP control. USB needs no token.
+#define TALLY_HTTP_TOKEN ""
+
+// Motor Shield Rev3, channel B: DIR 13, PWM 11, BRAKE 8.
+#define TALLY_RED_DIRECTION_HIGH 0
+#define TALLY_RED_FLOOR (20.0f / 255.0f)
+#define TALLY_WHITE_FLOOR (20.0f / 255.0f)
+#define TALLY_BREATH_PERIOD_MS 4800U
+
+// Set to 0 for a USB-only build, with no modem initialization or Wi-Fi calls.
+#define TALLY_ENABLE_WIFI 1
