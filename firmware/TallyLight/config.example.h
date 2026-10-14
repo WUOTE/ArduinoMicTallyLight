@@ -7,9 +7,11 @@
 
 // Motor Shield Rev3, channel B: DIR 13, PWM 11, BRAKE 8.
 #define TALLY_RED_DIRECTION_HIGH 0
-#define TALLY_RED_FLOOR (20.0f / 255.0f)
-#define TALLY_WHITE_FLOOR (20.0f / 255.0f)
+// Zero-floor experiment. Restore (20.0f / 255.0f) if the lamp flickers near off.
+#define TALLY_RED_FLOOR 0.0f
+#define TALLY_WHITE_FLOOR 0.0f
 #define TALLY_BREATH_PERIOD_MS 4800U
+#define TALLY_TRANSITION_MS 250U
 
 // Set to 0 for a USB-only build, with no modem initialization or Wi-Fi calls.
 #define TALLY_ENABLE_WIFI 1

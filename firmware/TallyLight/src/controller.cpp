@@ -5,6 +5,7 @@
 namespace tally {
 namespace {
 float clamp01(float value) { return value < 0 ? 0 : (value > 1 ? 1 : value); }
+bool breathing(Mode mode) { return mode == Mode::Idle || mode == Mode::Hot; }
 bool equalIgnoringCase(const char* a, const char* b) {
   while (*a && *b) {
     const char c = (*a >= 'A' && *a <= 'Z') ? static_cast<char>(*a + ('a' - 'A')) : *a;
@@ -65,8 +66,9 @@ float breathEnvelope(float x) {
 
 Controller::Controller(Settings settings) : settings_(settings) {
   if (settings_.periodMs < 100 || settings_.periodMs > 600000) settings_.periodMs = 4800;
-  if (!isfinite(settings_.redFloor)) settings_.redFloor = 20.0f / 255.0f;
-  if (!isfinite(settings_.whiteFloor)) settings_.whiteFloor = 20.0f / 255.0f;
+  if (settings_.transitionMs < 10 || settings_.transitionMs > 5000) settings_.transitionMs = 250;
+  if (!isfinite(settings_.redFloor)) settings_.redFloor = 0;
+  if (!isfinite(settings_.whiteFloor)) settings_.whiteFloor = 0;
   settings_.redFloor = clamp01(settings_.redFloor);
   settings_.whiteFloor = clamp01(settings_.whiteFloor);
 }
@@ -75,33 +77,53 @@ void Controller::tick(uint32_t now) {
   const uint32_t elapsed = now - lastTick_;  // Unsigned subtraction survives millis() wrap.
   lastTick_ = now;
   uptimeMs_ += elapsed;
-  if (mode_ == Mode::Idle || mode_ == Mode::Hot) {
+  if (breathing(mode_)) {
     phaseMs_ = (phaseMs_ + elapsed % settings_.periodMs) % settings_.periodMs;
   }
+  const uint32_t remaining = settings_.transitionMs - transitionElapsedMs_;
+  transitionElapsedMs_ += elapsed < remaining ? elapsed : remaining;
 }
 
 bool Controller::setMode(Mode mode, Source source, uint32_t now) {
   tick(now);
+  return setMode(mode, source, now, output().pwm);
+}
+
+bool Controller::setMode(Mode mode, Source source, uint32_t now, uint16_t displayedPwm) {
+  tick(now);
   source_ = source;
-  if (mode == mode_) return false;  // Retries never restart a breath.
+  if (mode == mode_) return false;  // Retries never restart a breath or transition.
+  const bool wasBreathing = breathing(mode_);
   mode_ = mode;
   ++revision_;
-  phaseMs_ = settings_.periodMs * 35U / 100U;  // Peak is at 1.4 / 4 of a cycle.
+  if (breathing(mode_) && !wasBreathing) {
+    phaseMs_ = settings_.periodMs * 35U / 100U;  // Enter the curve at its peak.
+  }
+  // Carry the phase between breathing colors. A short correction starts the new
+  // curve/solid at the actual displayed duty, including interrupted transitions
+  // and different per-color floors. Off always cancels the transition immediately.
+  transitionOffset_ = mode_ == Mode::Off ? 0 :
+      clamp01(static_cast<float>(displayedPwm) / kPwmMax) - targetDuty();
+  transitionElapsedMs_ = mode_ == Mode::Off ? settings_.transitionMs : 0;
   return true;
+}
+
+float Controller::targetDuty() const {
+  if (mode_ == Mode::Off) return 0;
+  if (!breathing(mode_)) return 1;
+  const float floor = mode_ == Mode::Hot ? settings_.redFloor : settings_.whiteFloor;
+  const float x = 4.0f * static_cast<float>(phaseMs_) / static_cast<float>(settings_.periodMs);
+  return floor + (1.0f - floor) * breathEnvelope(x);
 }
 
 Output Controller::output() const {
   const bool red = mode_ == Mode::Hot || mode_ == Mode::Red;
   Output result{red ? Color::Red : Color::White, 0};
   if (mode_ == Mode::Off) return result;
-  if (mode_ == Mode::Red || mode_ == Mode::White) {
-    result.pwm = kPwmMax;
-    return result;
-  }
-  const float floor = red ? settings_.redFloor : settings_.whiteFloor;
-  const float x = 4.0f * static_cast<float>(phaseMs_) / static_cast<float>(settings_.periodMs);
-  const float duty = floor + (1.0f - floor) * breathEnvelope(x);
-  // The only brightness quantization in the new animation.
+  const float t = static_cast<float>(transitionElapsedMs_) / settings_.transitionMs;
+  const float eased = t * t * (3.0f - 2.0f * t);
+  const float duty = targetDuty() + transitionOffset_ * (1.0f - eased);
+  // Quantize only the final duty sent to the bridge.
   result.pwm = static_cast<uint16_t>(lroundf(clamp01(duty) * kPwmMax));
   return result;
 }

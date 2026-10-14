@@ -20,8 +20,9 @@ float breathEnvelope(float x);
 
 struct Settings {
   uint32_t periodMs = 4800;
-  float redFloor = 20.0f / 255.0f;
-  float whiteFloor = 20.0f / 255.0f;
+  uint32_t transitionMs = 250;
+  float redFloor = 0;
+  float whiteFloor = 0;
 };
 
 struct Output {
@@ -34,6 +35,8 @@ class Controller {
   explicit Controller(Settings settings = Settings());
   void tick(uint32_t now);
   bool setMode(Mode mode, Source source, uint32_t now);
+  // Use the last hardware duty, which may lag the animation by a frame.
+  bool setMode(Mode mode, Source source, uint32_t now, uint16_t displayedPwm);
   Output output() const;
   Mode mode() const { return mode_; }
   Source source() const { return source_; }
@@ -42,6 +45,7 @@ class Controller {
   uint32_t phaseMs() const { return phaseMs_; }
 
  private:
+  float targetDuty() const;
   Settings settings_;
   Mode mode_ = Mode::Off;
   Source source_ = Source::Boot;
@@ -49,6 +53,8 @@ class Controller {
   uint32_t lastTick_ = 0;
   uint64_t uptimeMs_ = 0;
   uint32_t phaseMs_ = 0;
+  uint32_t transitionElapsedMs_ = 0;
+  float transitionOffset_ = 0;
 };
 
 }  // namespace tally

@@ -5,6 +5,12 @@ does not increment it or reset the animation. `source` records the latest valid 
 including a repeated mode. Status/ping queries do not change ownership. Reboots start at
 `off`, revision zero; no mode is persisted to flash.
 
+A changed mode starts from the last PWM duty written to the lamp. Color changes take effect
+with the next lit output, and brightness joins the target over 250 ms by default. `hot`/`idle`
+changes carry the breathing phase. `off` extinguishes immediately. Acknowledgements confirm
+the new mode has been selected; they do not wait for a fade to finish. `pwm` may therefore be
+zero or below full brightness in a successful acknowledgement, including for `red`/`white`.
+
 ## USB
 
 115200 baud, 8 data bits, no parity, 1 stop bit, no flow control. Commands are ASCII lines

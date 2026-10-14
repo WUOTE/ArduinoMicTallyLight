@@ -42,20 +42,33 @@ int main(int argc, char** argv) {
     CHECK(fake::pins[13] == HIGH);  // Physical startup polarity must match the driver's White state.
     CHECK(!fake::unbrakedPwmInitialization);
     usb("white\n");  // First command must not depend on an earlier red command correcting direction.
+    CHECK(fake::pwm == 0 && fake::pins[8] == HIGH);
+    runFor(100);
+    CHECK(fake::pwm > 0 && fake::pwm < 4095 && fake::pins[13] == HIGH);
+    runFor(160);
     CHECK(fake::pwm == 4095 && fake::pins[13] == HIGH && fake::pins[8] == LOW);
     usb("off\n");
     usb("@first hot\n");
-    CHECK(fake::pwm == 4095 && fake::pins[13] == LOW && fake::pins[8] == LOW);
+    CHECK(fake::pwm == 0 && fake::pins[8] == HIGH);
     runFor(100);
     CHECK(Serial.outgoing.find("\"id\":\"first\"") != std::string::npos);
-    CHECK(fake::pwm < 4095);
+    CHECK(fake::pwm > 0 && fake::pwm < 4095 && fake::pins[13] == LOW);
     usb("hot\n");
     CHECK(fake::pwm < 4095);  // Same-mode retry does not restart.
+    const int redDuty = fake::pwm;
     usb("idle\n");
-    CHECK(fake::pwm == 4095 && fake::pins[13] == HIGH && fake::pins[8] == LOW);
+    CHECK(fake::pwm == redDuty && fake::pins[13] == HIGH && fake::pins[8] == LOW);
+    runFor(50);
+    const int fadingDuty = fake::pwm;
+    usb("red\n");
+    CHECK(fake::pwm == fadingDuty && fake::pins[13] == LOW);
+    runFor(260);
+    CHECK(fake::pwm == 4095);
     usb("off\n");
     CHECK(fake::pwm == 0 && fake::pins[8] == HIGH);
     usb("white\n");
+    CHECK(fake::pwm == 0);
+    runFor(260);
     CHECK(fake::pwm == 4095 && fake::pins[13] == HIGH);
     // USB transmit backpressure must not hold up light changes.
     Serial.capacity = 0;
@@ -64,6 +77,24 @@ int main(int argc, char** argv) {
     CHECK(fake::pwm == 4095 && fake::pins[13] == LOW);
     Serial.capacity = 64;
     runFor(4000);
+    // A zero-floor breath brakes at zero and resumes without leaving the driver stuck off.
+    usb("hot\n");
+    bool reachedZero = false;
+    bool resumed = false;
+    for (unsigned i = 0; i < 5000; ++i) {
+      runFor(1);
+      if (!fake::pwm) {
+        CHECK(fake::pins[8] == HIGH);
+        reachedZero = true;
+      } else if (reachedZero) {
+        CHECK(fake::pins[8] == LOW && fake::pins[13] == LOW);
+        resumed = true;
+      }
+    }
+    CHECK(reachedZero && resumed);
+    usb("red\n");
+    runFor(260);
+    CHECK(fake::pwm == 4095);
     if (scenario == "missing-modem" || scenario == "offline") {
       CHECK(!fake::serverStarted);
       const unsigned calls = fake::modemCalls;
@@ -83,9 +114,10 @@ int main(int argc, char** argv) {
       const auto lengthStart = socket->outgoing.find("Content-Length: ") + 16;
       CHECK(std::stoul(socket->outgoing.substr(lengthStart)) == socket->outgoing.size() - bodyStart);
       // The command takes effect before all response chunks have been sent.
+      runFor(2000);  // Switch from a dim breath, not a near-peak sample.
       socket = http(post("{\"mode\":\"white\"}"));
       while (fake::pins[13] != HIGH) runFor(1);
-      CHECK(!socket->closed && fake::pwm == 4095);
+      CHECK(!socket->closed && fake::pwm > 0 && fake::pwm < 1000);
       waitClosed(socket);
       runFor(5000);
       CHECK(fake::pwm == 4095);  // Old USB hot/red state cannot override HTTP white.
@@ -104,10 +136,13 @@ int main(int argc, char** argv) {
       CHECK(socket->outgoing.find("HTTP/1.1 408") == 0);
       // A command arriving during an RPC is applied immediately after that call returns.
       fake::callLatency = 50;
-      fake::usbDuringNextCall = "red\n";
+      fake::usbDuringNextCall = "@rpc red\n";
       runFor(6);
-      CHECK(fake::pwm == 4095 && fake::pins[13] == LOW);
+      CHECK(Serial.outgoing.find("\"id\":\"rpc\",\"mode\":\"red\"") != std::string::npos);
+      CHECK(fake::pwm == 0);  // Accepted immediately; brightness starts fading from off.
       fake::callLatency = 2;
+      runFor(260);
+      CHECK(fake::pwm == 4095 && fake::pins[13] == LOW);
       fake::wifiConnected = false;
       runFor(1200);
       CHECK(!fake::serverStarted);

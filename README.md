@@ -4,21 +4,25 @@ Local USB and optional Wi-Fi control of a Yellowtec m!ka red/white on-air light 
 **Arduino UNO R4 WiFi + Arduino Motor Shield Rev3, channel B**.
 
 The firmware boots with the light off. Every valid command immediately updates the shared
-state and output. Breathing starts at its bright peak, so a new state is visible without
-waiting for the next cycle. Repeating the current mode preserves the breath's position.
+state. Mode changes keep the current PWM brightness, switch color, and smoothly join the
+new mode over 250 ms. Switching between breathing colors also preserves the cycle's position.
+Repeating the current mode preserves both the breath and any transition already in progress.
 The last valid command processed wins, whether it came from USB or HTTP.
 
 | Command | Light |
 | --- | --- |
 | `off` | Off immediately |
-| `idle` | White breathing, starting at full brightness |
-| `hot` | Red breathing, starting at full brightness |
-| `red` | Steady full red |
-| `white` | Steady full white |
+| `idle` | White breathing, continuing from the current brightness |
+| `hot` | Red breathing, continuing from the current brightness |
+| `red` | Fade from the current brightness to steady full red |
+| `white` | Fade from the current brightness to steady full white |
 
 Breathing uses the original two-piece Gaussian shape, a 4.8-second period, 100 Hz animation
-updates and 12-bit PWM (`0..4095`). No lookup table is used in production. The empirical
-minimum remains `20/255` duty, about 7.84%, independently configurable for each color.
+updates and 12-bit PWM (`0..4095`). No lookup table is used in production. Both breathing
+floors are now **zero for physical testing**: each cycle can go completely dark. If the lamp
+flickers or cuts out abruptly near zero, raise `TALLY_RED_FLOOR` or `TALLY_WHITE_FLOOR` in
+`config.local.h`; the previous setting was `(20.0f / 255.0f)`, about 7.84% duty.
+`TALLY_TRANSITION_MS` controls the 250 ms transition. `off` still takes effect immediately.
 
 ## Upload
 

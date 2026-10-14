@@ -15,14 +15,16 @@ static unsigned checks = 0;
 
 void transitions() {
   const Mode modes[] = {Mode::Off, Mode::Idle, Mode::Hot, Mode::Red, Mode::White};
+  // Exercise steady output, both sides of the breath, its zero, and interrupted fades.
+  for (uint32_t at : {0U, 100U, 249U, 250U, 1000U, 2400U, 3120U, 4000U, 4800U})
   for (Mode from : modes) for (Mode to : modes) {
     Controller light;
     light.setMode(from, Source::Usb, 0);
-    light.tick(2400);
+    light.tick(at);
     const auto phase = light.phaseMs();
     const auto before = light.output();
     const auto revision = light.revision();
-    CHECK(light.setMode(to, Source::Http, 2400) == (from != to));
+    CHECK(light.setMode(to, Source::Http, at) == (from != to));
     CHECK(light.mode() == to);
     CHECK(light.source() == Source::Http);
     CHECK(light.revision() == revision + (from != to ? 1 : 0));
@@ -30,9 +32,14 @@ void transitions() {
       CHECK(light.phaseMs() == phase);
       CHECK(light.output().pwm == before.pwm);
     } else {
-      CHECK(light.output().pwm == (to == Mode::Off ? 0 : 4095));
+      CHECK(light.output().pwm == (to == Mode::Off ? 0 : before.pwm));
     }
+    if ((from == Mode::Hot || from == Mode::Idle) && (to == Mode::Hot || to == Mode::Idle))
+      CHECK(light.phaseMs() == phase);
     CHECK(light.output().color == ((to == Mode::Hot || to == Mode::Red) ? Color::Red : Color::White));
+    light.tick(at + 250);
+    if (to == Mode::Red || to == Mode::White) CHECK(light.output().pwm == 4095);
+    if (to == Mode::Off) CHECK(light.output().pwm == 0);
   }
   Controller light;
   CHECK(light.output().pwm == 0);
@@ -43,6 +50,73 @@ void transitions() {
   light.setMode(Mode::Off, Source::Usb, 10001);
   light.tick(100000);
   CHECK(light.output().pwm == 0);
+}
+
+void smoothChanges() {
+  Controller light;
+  light.setMode(Mode::Red, Source::Usb, 0);
+  unsigned previous = 0;
+  for (uint32_t t = 0; t <= 250; ++t) {
+    light.tick(t);
+    const unsigned pwm = light.output().pwm;
+    CHECK(pwm >= previous && pwm - previous <= 25);  // No jump in the 250 ms fade.
+    previous = pwm;
+    if (t == 100) CHECK(!light.setMode(Mode::Red, Source::Http, t));
+  }
+  CHECK(light.output().pwm == 4095);  // Retry did not postpone settling.
+  light.setMode(Mode::Hot, Source::Usb, 250);
+  CHECK(light.output().pwm == 4095);
+  light.tick(2250);
+  const auto before = light.output().pwm;
+  CHECK(before > 0 && before < 4095);
+  light.setMode(Mode::White, Source::Usb, 2250);
+  CHECK(light.output().pwm == before);
+  previous = before;
+  for (uint32_t t = 2251; t <= 2500; ++t) {
+    light.tick(t);
+    CHECK(light.output().pwm >= previous);
+    previous = light.output().pwm;
+  }
+  CHECK(light.output().pwm == 4095);
+
+  // Changing breathing color carries phase and brightness in both directions.
+  for (uint32_t at : {1000U, 2400U, 3120U, 4000U, 4600U}) {
+    Controller changed, reference;
+    changed.setMode(Mode::Hot, Source::Usb, 0);
+    reference.setMode(Mode::Hot, Source::Usb, 0);
+    changed.tick(at);
+    changed.setMode(Mode::Idle, Source::Http, at);
+    for (uint32_t t = at; t <= at + 500; t += 10) {
+      changed.tick(t);
+      reference.tick(t);
+      CHECK(std::abs(static_cast<int>(changed.output().pwm) - reference.output().pwm) <= 1);
+      CHECK(changed.phaseMs() == reference.phaseMs());
+    }
+  }
+
+  // The hardware can still show an older frame after a slow network operation.
+  Controller displayed;
+  displayed.setMode(Mode::Hot, Source::Usb, 0);
+  displayed.tick(1000);
+  const auto lastFrame = displayed.output().pwm;
+  displayed.setMode(Mode::White, Source::Http, 1100, lastFrame);
+  CHECK(displayed.output().pwm == lastFrame);
+  displayed.tick(1200);
+  const auto interrupted = displayed.output().pwm;
+  displayed.setMode(Mode::Hot, Source::Usb, 1200, interrupted);
+  CHECK(displayed.output().pwm == interrupted);
+  displayed.setMode(Mode::Off, Source::Usb, 1201);
+  CHECK(displayed.output().pwm == 0);
+  displayed.tick(100000);
+  CHECK(displayed.output().pwm == 0);
+
+  // Transition time itself must survive clock wrap and a large delayed tick.
+  Controller wrap;
+  wrap.setMode(Mode::White, Source::Usb, UINT32_MAX - 100U);
+  wrap.tick(24);
+  CHECK(std::abs(static_cast<int>(wrap.output().pwm) - 2048) <= 1);
+  wrap.tick(149);
+  CHECK(wrap.output().pwm == 4095);
 }
 
 void timeAndCurve() {
@@ -79,14 +153,17 @@ void timeAndCurve() {
   for (uint32_t t = 0; t < 4800; ++t) {
     light.tick(t);
     const auto pwm = light.output().pwm;
-    CHECK(pwm >= 321 && pwm <= 4095);
+    CHECK(pwm <= 4095);
     seen[pwm] = true;
   }
   unsigned unique = 0;
   for (bool value : seen) if (value) ++unique;
   CHECK(unique > 1000);  // No hidden 8-bit quantization before the final PWM write.
+  CHECK(seen[0]);  // Zero floor reaches actual off duty, not the old 321/4095 minimum.
   light.tick(4800);
   CHECK(light.output().pwm == 4095);
+  light.tick(7920);
+  CHECK(light.output().pwm == 0);
   Settings calibration;
   calibration.redFloor = 0.2f;
   calibration.whiteFloor = 0.1f;
@@ -95,9 +172,10 @@ void timeAndCurve() {
   calibrated.tick(3120);
   CHECK(calibrated.output().pwm == 819);
   calibrated.setMode(Mode::Idle, Source::Usb, 3120);
-  calibrated.tick(6240);
+  CHECK(calibrated.output().pwm == 819);  // Changing floors must not change duty immediately.
+  calibrated.tick(7920);
   CHECK(calibrated.output().pwm == 410);
-  calibrated.setMode(Mode::Off, Source::Usb, 6240);
+  calibrated.setMode(Mode::Off, Source::Usb, 7920);
   CHECK(calibrated.output().pwm == 0);  // Floors never apply to off.
 }
 
@@ -243,6 +321,7 @@ void fuzzParsers() {
 int main() {
   try {
     transitions();
+    smoothChanges();
     timeAndCurve();
     legacyDistribution();
     serialProtocol();

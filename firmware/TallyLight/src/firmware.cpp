@@ -21,6 +21,7 @@ constexpr uint32_t kFrameMs = 10;
 Settings settings() {
   Settings s;
   s.periodMs = TALLY_BREATH_PERIOD_MS;
+  s.transitionMs = TALLY_TRANSITION_MS;
   s.redFloor = TALLY_RED_FLOOR;
   s.whiteFloor = TALLY_WHITE_FLOOR;
   return s;
@@ -125,7 +126,9 @@ void pollUsb() {
     const Command command = parseCommand(serialLine.text());
     if (command.kind == CommandKind::Invalid) { serialError("invalid_command", command.id); continue; }
     bool changed = false;
-    if (command.kind == CommandKind::SetMode) changed = controller.setMode(command.mode, Source::Usb, millis());
+    if (command.kind == CommandKind::SetMode) {
+      changed = controller.setMode(command.mode, Source::Usb, millis(), applied.pwm);
+    }
     controller.tick(millis());
     render(true);  // Apply first, acknowledge second. Queries also report an up-to-date output.
     char response[384];
@@ -177,7 +180,7 @@ void prepareResponse() {
       Mode mode;
       if (!request.jsonContentType()) status = 415;
       else if (!parseModeJson(request.body(), mode)) status = 400;
-      else changed = controller.setMode(mode, Source::Http, millis());
+      else changed = controller.setMode(mode, Source::Http, millis(), applied.pwm);
     }
   }
   controller.tick(millis());
