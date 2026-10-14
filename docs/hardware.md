@@ -36,8 +36,8 @@ not a measurement of the lamp's current. Do not raise this shield's supply to 24
 because the lamp and UNO individually accept it.
 
 The firmware retains the existing PWM carrier. The owner has tested USB control and reports
-no visible intensity stepping above the old floor. Both floors are now zero for the next
-physical test; smooth output above the old floor does not establish behavior near zero.
+no visible intensity stepping or flicker with the floor lowered to zero. Both floors remain
+zero for this setup; observations on this lamp do not establish behavior on every unit.
 Separate red and white floors allow calibration if either color flickers or cuts out.
 At 12-bit resolution, 4095 means 100% duty, exactly as 255 does at 8-bit resolution. It does
 not raise the voltage or the peak current. Changes preserve the current duty and smoothly

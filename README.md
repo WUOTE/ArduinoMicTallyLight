@@ -19,7 +19,8 @@ The last valid command processed wins, whether it came from USB or HTTP.
 
 Breathing uses the original two-piece Gaussian shape, a 4.8-second period, 100 Hz animation
 updates and 12-bit PWM (`0..4095`). No lookup table is used in production. Both breathing
-floors are now **zero for physical testing**: each cycle can go completely dark. If the lamp
+floors are **zero**: each cycle can go completely dark. The owner reports no flicker at this
+floor on the current setup. If the lamp
 flickers or cuts out abruptly near zero, raise `TALLY_RED_FLOOR` or `TALLY_WHITE_FLOOR` in
 `config.local.h`; the previous setting was `(20.0f / 255.0f)`, about 7.84% duty.
 `TALLY_TRANSITION_MS` controls the 250 ms transition. `off` still takes effect immediately.

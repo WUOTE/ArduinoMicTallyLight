@@ -190,6 +190,37 @@ void legacyDistribution() {
   }
 }
 
+void cycleCadence() {
+  // Measure successive peaks from the production output, independently of phaseMs().
+  // Multiple service passes and same-mode commands must not make the clock run faster.
+  for (uint32_t period : {4800U, 5200U}) for (float floor : {0.0f, 20.0f / 255.0f}) {
+    Settings settings;
+    settings.periodMs = period;
+    settings.redFloor = settings.whiteFloor = floor;
+    Controller light(settings);
+    light.setMode(Mode::Hot, Source::Usb, 0);
+    light.tick(period);  // Ignore the initial transition into breathing.
+    uint16_t previous = light.output().pwm;
+    uint32_t lastPeak = 0;
+    unsigned peaks = 0;
+    for (uint32_t now = period + 1; now <= 4 * period; ++now) {
+      light.tick(now);
+      light.tick(now);
+      light.tick(now);
+      if (now % 37 == 0) CHECK(!light.setMode(Mode::Hot, Source::Usb, now));
+      const uint16_t pwm = light.output().pwm;
+      if (pwm == kPwmMax && previous < kPwmMax) {
+        if (peaks) CHECK(now - lastPeak == period);
+        lastPeak = now;
+        ++peaks;
+      }
+      previous = pwm;
+    }
+    CHECK(peaks == 3);
+    std::cout << "Cadence: " << period << " ms peak-to-peak, floor " << floor << '\n';
+  }
+}
+
 void serialProtocol() {
   Mode mode = Mode::Red;
   CHECK(parseMode("HoT", mode) && mode == Mode::Hot);
@@ -324,6 +355,7 @@ int main() {
     smoothChanges();
     timeAndCurve();
     legacyDistribution();
+    cycleCadence();
     serialProtocol();
     httpProtocol();
     fuzzParsers();

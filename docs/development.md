@@ -48,7 +48,8 @@ jump. A new command starts from the currently displayed duty, including an unfin
 transition. Repeated modes do not restart anything. `off` cancels the transition immediately.
 
 Brightness is normalized floating-point duty until `round(duty * 4095)`. Full brightness
-is 4095, not 4096. Both per-color floors now default to zero for the bench test. They are duty
+is 4095, not 4096. Both per-color floors default to zero, retained after the owner's successful
+physical test. They are duty
 ratios: restoring the previous `20/255` floor gives about 321 at 12 bits. Floors apply to the
 settled breathing curve; entry from off and changes between different floors can temporarily
 go below that floor. The hardware PWM carrier is separate from the animation frame rate and remains
@@ -89,7 +90,8 @@ under GCC/Clang with address and undefined-behavior sanitizers. The integration 
 cover online, offline and absent-modem startup, USB priority, malformed/fragmented HTTP,
 backpressure, response lengths, reconnect/DHCP waits and disabled-before-reverse pin ordering.
 The core suite checks all 25 mode transitions at multiple brightnesses, interrupted fades,
-phase continuity, zero-floor cycles, 400 legacy samples, clock wrap and 10,000
+phase continuity, zero-floor cycles, peak-to-peak timing with repeated service calls and
+commands, 400 legacy samples, clock wrap and 10,000
 deterministic parser fuzz cases. Fakes test scheduling intent, not physical device behavior.
 MSVC's optional AddressSanitizer run is `tools/test-native.cmd asan` (requires that Visual
 Studio component); it exercises the same core and integration suites.
