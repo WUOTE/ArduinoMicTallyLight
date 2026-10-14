@@ -10,6 +10,8 @@ int pins[32] = {};
 int pwm = 0;
 int resolution = 8;
 bool unsafeDirectionChange = false;
+bool unbrakedPwmInitialization = false;
+bool pwmInitialized = false;
 std::vector<std::string> pinEvents;
 bool modemResponds = true;
 bool wifiConnected = true;
@@ -36,10 +38,22 @@ void digitalWrite(int pin, int value) {
   fake::pins[pin] = value;
   fake::pinEvents.push_back("digital " + std::to_string(pin) + " " + std::to_string(value));
 }
-void pinMode(int pin, int mode) { (void)pin; (void)mode; }
+void pinMode(int pin, int mode) {
+  // Renesas core 1.6.0 configures the full PFS register. OUTPUT also clears PODR.
+  if (mode == OUTPUT) {
+    fake::pins[pin] = LOW;
+    if (pin == 11) fake::pwm = 0;
+  }
+  fake::pinEvents.push_back("mode " + std::to_string(pin) + " " + std::to_string(mode));
+}
 void analogWriteResolution(int bits) { fake::resolution = bits; }
 void analogWrite(int pin, int value) {
   if (pin != 11 || value < 0 || value > 4095) throw std::runtime_error("Invalid PWM write");
+  if (!fake::pwmInitialized) {
+    // The real core starts a new PWM timer at 50% before writing the requested duty.
+    fake::unbrakedPwmInitialization = fake::pins[8] != HIGH;
+    fake::pwmInitialized = true;
+  }
   fake::pwm = value;
   fake::pinEvents.push_back("pwm " + std::to_string(value));
 }

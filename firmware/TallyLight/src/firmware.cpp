@@ -330,12 +330,15 @@ void pollNetwork() {
 }  // namespace
 
 void setupFirmware() {
-  // Brake both bridge outputs before PWM initialization (analogWrite creates a timer).
-  digitalWrite(kBrakePin, HIGH);
-  pinMode(kBrakePin, OUTPUT);
-  digitalWrite(kDirectionPin, TALLY_RED_DIRECTION_HIGH ? LOW : HIGH);
-  pinMode(kDirectionPin, OUTPUT);
+  // The Renesas core's pinMode(OUTPUT) clears the output latch: set levels AFTER it.
+  // Hold enable low first, then brake while analogWrite starts its PWM timer.
+  // The timer briefly starts at its default duty before applying the requested zero.
   pinMode(kPwmPin, OUTPUT);
+  digitalWrite(kPwmPin, LOW);
+  pinMode(kBrakePin, OUTPUT);
+  digitalWrite(kBrakePin, HIGH);
+  pinMode(kDirectionPin, OUTPUT);
+  digitalWrite(kDirectionPin, TALLY_RED_DIRECTION_HIGH ? LOW : HIGH);
   analogWriteResolution(12);
   analogWrite(kPwmPin, 0);  // Keep the core's default ~490 Hz carrier.
   Serial.begin(115200);

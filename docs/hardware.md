@@ -1,8 +1,9 @@
 # Hardware assumptions and bench check
 
 The configured hardware is an UNO R4 WiFi, an unmodified Arduino Motor Shield Rev3, and a
-Yellowtec m!ka red/white on-air lamp. The reported supply is nominally 12 V, 1 A; its exact
-label, feed point and loaded voltage have not been measured here.
+Yellowtec m!ka red/white on-air lamp. The reported supply is nominally 12 V, 1 A and plugs
+into the UNO's barrel connector; the lamp connects to the shield's output terminals.
+The adapter's exact label, polarity, loaded voltage and lamp current have not been verified here.
 
 | Connection | Default |
 | --- | --- |
@@ -12,13 +13,19 @@ label, feed point and loaded voltage have not been measured here.
 | Brake | D8: HIGH when off, LOW when lit |
 | Vin Connect | Still intact; shield and Arduino VIN rails are linked |
 
+With the intact jumper, barrel-jack power also supplies the shield's bridge through VIN.
+The lamp draws power through this supply path, not through a microcontroller GPIO or the
+UNO's 5 V regulator. Arduino documents barrel-jack power as an option for this shield and
+specifies a 2.1 mm center-positive connector. The shield's 2 A per-channel rating does not
+establish a continuous-current rating for the entire adapter, connector and board power path.
+
 The [Motor Shield Rev3](https://store.arduino.cc/products/arduino-motor-shield-rev3) is an
 L298P bridge. Its recommended external supply range is 7–12 V and its VIN terminal absolute
 limit is 18 V. The [UNO R4 WiFi](https://store.arduino.cc/products/uno-r4-wifi) supports 6–24 V
 on VIN, but that does not increase the shield's limits. The shield's documentation recommends
 separating the VIN connection when supplying the shield above 9 V; this rewrite neither
-changes that jumper nor increases the supply. Verify the actual power wiring before any
-hardware changes.
+changes that jumper nor increases the supply. Cutting it with this barrel-only supply would
+disconnect the shield's motor power; a separately powered shield requires deliberate rewiring.
 
 The [Yellowtec booklet, printed page 4](https://www.yellowtec.com/fileadmin/mika/mika_BB_v7_email.pdf)
 specifies **12–24 V DC at the on-air light**, with polarity selecting red/white. It does not
@@ -31,10 +38,21 @@ because the lamp and UNO individually accept it.
 The firmware retains the existing PWM carrier and the observed minimum duty. It does not
 assume the lamp tolerates a higher PWM frequency or that extra numerical resolution fixes
 electrical flicker. Separate red and white floors allow calibration after testing.
+At 12-bit resolution, 4095 means 100% duty, exactly as 255 does at 8-bit resolution. It does
+not raise the voltage or the peak current. Mode changes now reach that peak immediately.
+
+Startup first disables the bridge enable, then applies the brake before initializing PWM.
+Pin levels are set after `pinMode(OUTPUT)` because the pinned Renesas core clears the output
+latch when configuring an output. This also makes the initial physical polarity match the
+driver's cached state. Reset/bootloader behavior before the sketch runs still belongs to
+the board and shield hardware; host tests cannot certify it.
 
 ## First physical test
 
-1. Upload the new sketch; confirm the lamp starts off. Open a USB connection at 115200 baud.
+1. Check the adapter label for regulated 12 V DC with center-positive polarity. Unplug the
+   barrel adapter for the first upload and power the UNO over USB. After uploading, power
+   down before changing any wiring, reconnect the normal supply and confirm the lamp starts
+   off. Open a USB connection at 115200 baud for a brief supervised test.
 2. Send `red`, `white`, and `off`. Check the actual colors and full output. If reversed,
    set `TALLY_RED_DIRECTION_HIGH` in the ignored local configuration and rebuild.
 3. Send `hot` and `idle` from off and during the dimmest part of the opposite mode. Each

@@ -39,7 +39,11 @@ int main(int argc, char** argv) {
     fake::wifiConnected = scenario != "offline";
     tally::setupFirmware();
     CHECK(fake::pwm == 0 && fake::pins[8] == HIGH && fake::resolution == 12);
-    CHECK(fake::pinEvents.front() == "digital 8 1");
+    CHECK(fake::pins[13] == HIGH);  // Physical startup polarity must match the driver's White state.
+    CHECK(!fake::unbrakedPwmInitialization);
+    usb("white\n");  // First command must not depend on an earlier red command correcting direction.
+    CHECK(fake::pwm == 4095 && fake::pins[13] == HIGH && fake::pins[8] == LOW);
+    usb("off\n");
     usb("@first hot\n");
     CHECK(fake::pwm == 4095 && fake::pins[13] == LOW && fake::pins[8] == LOW);
     runFor(100);

@@ -14,6 +14,7 @@ extern int pins[32];
 extern int pwm;
 extern int resolution;
 extern bool unsafeDirectionChange;
+extern bool unbrakedPwmInitialization;
 extern std::vector<std::string> pinEvents;
 }
 inline uint32_t millis() { return fake::now; }
