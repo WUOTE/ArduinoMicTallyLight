@@ -18,17 +18,8 @@ constexpr uint8_t kDirectionPin = 13;
 constexpr uint8_t kPwmPin = 11;
 constexpr uint8_t kBrakePin = 8;
 constexpr uint32_t kFrameMs = 10;
-Settings settings() {
-  Settings s;
-  s.periodMs = TALLY_BREATH_PERIOD_MS;
-  s.peakHoldMs = TALLY_PEAK_HOLD_MS;
-  s.floorHoldMs = TALLY_FLOOR_HOLD_MS;
-  s.transitionMs = TALLY_TRANSITION_MS;
-  s.redFloor = TALLY_RED_FLOOR;
-  s.whiteFloor = TALLY_WHITE_FLOOR;
-  return s;
-}
-Controller controller(settings());
+Controller controller({TALLY_RISE_MS, TALLY_PEAK_HOLD_MS, TALLY_FALL_MS, TALLY_FLOOR_HOLD_MS,
+                       TALLY_TRANSITION_MS, TALLY_RED_FLOOR, TALLY_WHITE_FLOOR});
 SerialLine serialLine;
 Output applied{Color::White, 0};
 uint32_t lastFrame = 0;

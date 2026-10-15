@@ -19,12 +19,14 @@ float twoPieceNormal(float x);
 float breathEnvelope(float x);
 
 struct Settings {
-  uint32_t periodMs = 6000;  // Full cycle, including both holds.
-  uint32_t peakHoldMs = 400;
-  uint32_t floorHoldMs = 800;
-  uint32_t transitionMs = 250;
-  float redFloor = 0;
-  float whiteFloor = 0;
+  // Values come from config.h. No duplicate tuning defaults live in this type.
+  uint32_t riseMs;
+  uint32_t peakHoldMs;
+  uint32_t fallMs;
+  uint32_t floorHoldMs;
+  uint32_t transitionMs;
+  float redFloor;
+  float whiteFloor;
 };
 
 struct Output {
@@ -34,7 +36,7 @@ struct Output {
 
 class Controller {
  public:
-  explicit Controller(Settings settings = Settings());
+  explicit Controller(Settings settings);
   void tick(uint32_t now);
   bool setMode(Mode mode, Source source, uint32_t now);
   // Use the last hardware duty, which may lag the animation by a frame.
@@ -45,9 +47,11 @@ class Controller {
   uint32_t revision() const { return revision_; }
   uint64_t uptimeMs() const { return uptimeMs_; }
   uint32_t phaseMs() const { return phaseMs_; }
+  uint32_t periodMs() const {
+    return settings_.riseMs + settings_.peakHoldMs + settings_.fallMs + settings_.floorHoldMs;
+  }
 
  private:
-  uint32_t riseMs() const;
   float targetDuty() const;
   Settings settings_;
   Mode mode_ = Mode::Off;

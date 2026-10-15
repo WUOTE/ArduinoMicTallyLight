@@ -29,16 +29,18 @@ With the old `20/255` floor, the shape differs by at most one 8-bit count at the
 sample positions; retaining the old rounding instead exactly reproduces all 400 values
 (tested). The zero floor deliberately extends the range below those old samples.
 
-The full period is now 6000 ms. Holds take 400 ms at the peak and 800 ms at the floor, leaving
-4800 ms for the original curve: 1680 ms rising and 3120 ms falling. `phaseMs()` counts through
-the complete cycle. The output maps that clock onto four regions: rise, peak hold, fall,
+The four independent durations are `TALLY_RISE_MS`, `TALLY_PEAK_HOLD_MS`, `TALLY_FALL_MS`,
+and `TALLY_FLOOR_HOLD_MS`, all in `config.h`. The controller calculates the full period by
+adding them; it never shortens the fades to accommodate a hold. Default settings are
+1680 ms rise, 400 ms peak hold, 3120 ms fall, and 800 ms floor hold: 6000 ms total.
+`phaseMs()` counts through the complete cycle. The output maps that clock onto rise, peak hold, fall,
 floor hold. It returns exactly full/floor duty during each hold; there are no delay calls or
 per-frame counters. Delayed frames skip to the correct position even across several regions.
 The fade samples match the version without holds when the inserted hold times are removed.
 
-`TALLY_BREATH_PERIOD_MS` includes both `TALLY_PEAK_HOLD_MS` and `TALLY_FLOOR_HOLD_MS`.
-The remaining time is split 35% rise / 65% fall, preserving the distribution's asymmetry.
-Either hold may be zero; the configuration must leave at least 100 ms for the moving curve.
+The 1680/3120 ms fades retain the original distribution's timing and can be tuned separately.
+Rise and fall each accept 1..600000 ms; holds each accept 0..600000 ms. Zero skips that hold.
+There is no configurable total period or requirement to make room for holds.
 Entering breathing from a steady/off mode starts at the beginning of the peak hold.
 Switching between `hot` and `idle` carries the current phase, including time spent in a hold.
 
@@ -57,7 +59,7 @@ and any lag since the last hardware frame. Unequal floors settle without a comma
 jump. A new command starts from the currently displayed duty, including an unfinished
 transition. Repeated modes do not restart anything. `off` cancels the transition immediately.
 The entry transition can overlap the first peak hold; later settled cycles have the full
-400 ms plateau. Steady/off commands during a hold take effect without waiting for its end.
+configured plateau. Steady/off commands during a hold take effect without waiting for its end.
 
 Brightness is normalized floating-point duty until `round(duty * 4095)`. Full brightness
 is 4095, not 4096. Both per-color floors default to zero, retained after the owner's successful
@@ -102,7 +104,8 @@ under GCC/Clang with address and undefined-behavior sanitizers. The integration 
 cover online, offline and absent-modem startup, USB priority, malformed/fragmented HTTP,
 backpressure, response lengths, reconnect/DHCP waits and disabled-before-reverse pin ordering.
 The core suite checks all 25 mode transitions at multiple brightnesses, interrupted fades,
-phase continuity, hold boundaries and interruption, zero-floor cycles, peak-to-peak timing
+phase continuity, hold boundaries and interruption, automatic cycle lengths with long holds,
+independent rise/fall durations, unchanged fade samples, zero-floor cycles, peak-to-peak timing
 with and without holds, repeated service calls and
 commands, 400 legacy samples, clock wrap and 10,000
 deterministic parser fuzz cases. Fakes test scheduling intent, not physical device behavior.
@@ -128,8 +131,10 @@ working copy the official compiler was placed in `.tools/gcc`; the build script 
 that path and overrides `build.compiler_path`. The compiler and CLI configuration are local
 tools, never committed or required by other checkouts.
 
-Local tuning belongs in `firmware/TallyLight/config.local.h`, which takes precedence over
-the guarded defaults in `config.h`. `firmware.cpp::settings()` copies those macros into a
-`Settings` instance and overrides every member default from `controller.hpp`. The header's
-defaults serve standalone controller users and host tests, so changing them is not a board
-configuration change. See the README's tuning and upload steps for the supported workflow.
+Edit light settings in `firmware/TallyLight/config.h`. The firmware passes these values directly
+to the controller; `Settings` has no member defaults and construction requires explicit values.
+Host tests use fixed fixtures so user tuning cannot change their expected timing. Credentials
+belong in the ignored `config.local.h`. If that file was copied from an older template, remove
+its timing/brightness definitions so they no longer override `config.h`; keep credentials and
+their includes. The old `TALLY_BREATH_PERIOD_MS` setting is no longer used. See the README for
+the tuning and upload steps.

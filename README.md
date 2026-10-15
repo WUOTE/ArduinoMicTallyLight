@@ -17,38 +17,40 @@ The last valid command processed wins, whether it came from USB or HTTP.
 | `red` | Fade from the current brightness to steady full red |
 | `white` | Fade from the current brightness to steady full white |
 
-Breathing uses the original two-piece Gaussian shape in a **6-second cycle**: 1.68 s rise,
-0.40 s at full brightness, 3.12 s fall, and 0.80 s at the floor. Animation updates at 100 Hz
+Breathing uses the original two-piece Gaussian shape. The default settings give a
+**6-second cycle**: 1.68 s rise, 0.4 s at full brightness, 3.12 s fall, and 0.8 s off.
+Animation updates at 100 Hz
 with 12-bit PWM (`0..4095`). No lookup table is used in production. Both breathing
 floors are **zero**: each cycle can go completely dark. The owner reports no flicker at this
 floor on the current setup. If the lamp flickers or cuts out abruptly near zero, raise
 `TALLY_RED_FLOOR` or `TALLY_WHITE_FLOOR` in
-`config.local.h`; the previous setting was `(20.0f / 255.0f)`, about 7.84% duty.
+`config.h`; the previous setting was `(20.0f / 255.0f)`, about 7.84% duty.
 `TALLY_TRANSITION_MS` controls the 250 ms transition. `off` still takes effect immediately.
 
-`TALLY_BREATH_PERIOD_MS` is the complete cycle, including `TALLY_PEAK_HOLD_MS` and
-`TALLY_FLOOR_HOLD_MS`. Holds do not block commands. Set both holds to zero and the period
-to 4800 to restore continuous breathing without plateaus.
+The cycle length is calculated automatically from its four segments. Changing a hold
+extends or shortens the cycle without changing either fade's speed. Holds do not block
+commands. Set both holds to zero to remove the plateaus.
 
 ## Tuning the settings
 
-Edit `firmware/TallyLight/config.local.h` for local experiments. Keep its existing credential
-definitions/includes and add or update the settings you want to override. For example:
+Edit the breathing block at the top of
+[`firmware/TallyLight/config.h`](firmware/TallyLight/config.h). All times are milliseconds
+(1000 = 1 second). These are the current settings:
 
 ```cpp
-#define TALLY_BREATH_PERIOD_MS 20000U
-#define TALLY_PEAK_HOLD_MS 4000U
-#define TALLY_FLOOR_HOLD_MS 8000U
+#define TALLY_RISE_MS       1680U
+#define TALLY_PEAK_HOLD_MS  400U
+#define TALLY_FALL_MS       3120U
+#define TALLY_FLOOR_HOLD_MS 800U
 ```
 
-That test cycle is 20 seconds total: 2.8 s rise, 4 s peak, 5.2 s fall, 8 s floor.
-The default settings remain 6000/400/800 ms when no local override exists.
+For a different peak or off hold, change only that number. There is no total period to
+maintain and no need to adjust the rise or fall to make room for holds. Zero disables a hold.
 
-`config.local.h` overrides the defaults in `config.h`. The firmware copies those macros into
-the controller's settings, replacing the member defaults in `src/controller.hpp`. Editing
-those `.hpp` defaults changes standalone controller/tests behavior, but the firmware still
-uses `config.h` and local overrides. `config.example.h` is only a template until copied.
-Save all edits, then rebuild and upload as described below.
+`config.h` also contains the zero brightness floors and the 250 ms mode transition setting.
+`src/controller.hpp` contains no tuning defaults. Keep Wi-Fi credentials in `config.local.h`;
+`config.example.h` is only a credentials template. Save `config.h`, then click **Upload** in
+Arduino IDE to compile and flash the changes, or use the command-line steps below.
 
 ## Upload
 
@@ -102,8 +104,8 @@ For the Wi-Fi-capable variant, omit `-UsbOnly` and upload from `build/wifi`.
 
 Upload is a separate, deliberate step; building and running tests never flash the board.
 `sketch.yaml` pins the core; WiFiS3 comes with it and
-there are no third-party library dependencies. `-FactoryDefaults` ignores local configuration
-for build validation; omit it when testing local tuning. See [development notes](docs/development.md)
+there are no third-party library dependencies. `-FactoryDefaults` ignores `config.local.h`
+for build validation; edits to `config.h` still apply. See [development notes](docs/development.md)
 for Windows path limits.
 
 ## Windows commands and Stream Deck

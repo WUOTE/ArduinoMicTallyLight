@@ -5,16 +5,4 @@
 // Optional bearer token for HTTP control. USB needs no token.
 #define TALLY_HTTP_TOKEN ""
 
-// Motor Shield Rev3, channel B: DIR 13, PWM 11, BRAKE 8.
-#define TALLY_RED_DIRECTION_HIGH 0
-// Zero-floor breathing, tested on the current lamp. Raise if another lamp flickers near off.
-#define TALLY_RED_FLOOR 0.0f
-#define TALLY_WHITE_FLOOR 0.0f
-// Full cycle includes holds. Remaining time keeps the Gaussian's 35% rise / 65% fall.
-#define TALLY_BREATH_PERIOD_MS 6000U
-#define TALLY_PEAK_HOLD_MS 400U
-#define TALLY_FLOOR_HOLD_MS 800U
-#define TALLY_TRANSITION_MS 250U
-
-// Set to 0 for a USB-only build, with no modem initialization or Wi-Fi calls.
-#define TALLY_ENABLE_WIFI 1
+// Edit breathing, brightness, and hardware settings in config.h.

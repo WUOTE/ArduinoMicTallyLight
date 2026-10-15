@@ -57,8 +57,8 @@ the board and shield hardware; host tests cannot certify it.
    off. Open a USB connection at 115200 baud for a brief supervised test.
 2. Send `red`, `white`, and `off`. Check the actual colors, the 250 ms fade from off to full
    output, and immediate off. If reversed,
-   set `TALLY_RED_DIRECTION_HIGH` in the ignored local configuration and rebuild.
-3. Send `red`, then `hot`: brightness should stay full for 400 ms, then begin falling.
+   set `TALLY_RED_DIRECTION_HIGH` in `config.h` and rebuild.
+3. Send `red`, then `hot`: brightness should stay full for the configured peak hold, then fall.
    Switch `hot` to `idle` on both the rising and falling sides: color should change without
    a jump to full brightness or a cycle restart. Switch a dim breath to `red` or `white`:
    it should keep that duty initially and fade to full in 250 ms. Interrupt a fade with
@@ -71,11 +71,12 @@ the board and shield hardware; host tests cannot certify it.
    while reconnects happen. Read `status` and record `max_service_gap_ms`. Compare a
    `-UsbOnly` build if network pauses are still visible.
 6. Watch several complete cycles in both colors, especially where they reach darkness and
-   resume. After the initial transition, a cycle takes 6 seconds, including a 400 ms hold
-   at full brightness and an 800 ms hold at zero. These plateaus are intentional. Look for
+   resume. After the initial transition, a cycle takes the sum of the four durations in
+   `config.h`: by default 6 seconds, including 0.4 seconds at full brightness and 0.8 seconds
+   at zero. These plateaus are intentional. Look for
    irregular flashes, an abrupt cutoff above zero, or an unexpectedly delayed relight.
    If either color behaves poorly, restore
-   its `TALLY_RED_FLOOR` / `TALLY_WHITE_FLOOR` in `config.local.h` to `(20.0f / 255.0f)` and
+   its `TALLY_RED_FLOOR` / `TALLY_WHITE_FLOOR` in `config.h` to `(20.0f / 255.0f)` and
    rebuild, or test a small nonzero floor such as `0.01f`. If flicker remains, measure the
    adapter and voltage across channel B at **steady full output** in each polarity. A
    multimeter's average in a breathing/PWM mode cannot establish the on-pulse voltage.

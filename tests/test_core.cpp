@@ -13,12 +13,15 @@ using namespace tally;
 static unsigned checks = 0;
 #define CHECK(expr) do { ++checks; if (!(expr)) throw std::runtime_error(std::string(__FILE__) + ":" + std::to_string(__LINE__) + " " #expr); } while (false)
 
+// Fixed test input, independent of the user's editable firmware configuration.
+constexpr Settings kTestSettings{1680, 400, 3120, 800, 250, 0, 0};
+
 void transitions() {
   const Mode modes[] = {Mode::Off, Mode::Idle, Mode::Hot, Mode::Red, Mode::White};
   // Exercise steady output, both sides of the breath, its zero, and interrupted fades.
   for (uint32_t at : {0U, 100U, 249U, 250U, 399U, 400U, 1000U, 2400U, 3520U, 4000U, 4320U, 6000U})
   for (Mode from : modes) for (Mode to : modes) {
-    Controller light;
+    Controller light(kTestSettings);
     light.setMode(from, Source::Usb, 0);
     light.tick(at);
     const auto phase = light.phaseMs();
@@ -41,7 +44,7 @@ void transitions() {
     if (to == Mode::Red || to == Mode::White) CHECK(light.output().pwm == 4095);
     if (to == Mode::Off) CHECK(light.output().pwm == 0);
   }
-  Controller light;
+  Controller light(kTestSettings);
   CHECK(light.output().pwm == 0);
   light.setMode(Mode::Hot, Source::Usb, 1);
   light.setMode(Mode::White, Source::Http, 2);
@@ -53,7 +56,7 @@ void transitions() {
 }
 
 void smoothChanges() {
-  Controller light;
+  Controller light(kTestSettings);
   light.setMode(Mode::Red, Source::Usb, 0);
   unsigned previous = 0;
   for (uint32_t t = 0; t <= 250; ++t) {
@@ -81,7 +84,7 @@ void smoothChanges() {
 
   // Changing breathing color carries phase and brightness in both directions.
   for (uint32_t at : {1000U, 2400U, 3120U, 4000U, 4600U}) {
-    Controller changed, reference;
+    Controller changed(kTestSettings), reference(kTestSettings);
     changed.setMode(Mode::Hot, Source::Usb, 0);
     reference.setMode(Mode::Hot, Source::Usb, 0);
     changed.tick(at);
@@ -95,7 +98,7 @@ void smoothChanges() {
   }
 
   // The hardware can still show an older frame after a slow network operation.
-  Controller displayed;
+  Controller displayed(kTestSettings);
   displayed.setMode(Mode::Hot, Source::Usb, 0);
   displayed.tick(1000);
   const auto lastFrame = displayed.output().pwm;
@@ -111,7 +114,7 @@ void smoothChanges() {
   CHECK(displayed.output().pwm == 0);
 
   // Transition time itself must survive clock wrap and a large delayed tick.
-  Controller wrap;
+  Controller wrap(kTestSettings);
   wrap.setMode(Mode::White, Source::Usb, UINT32_MAX - 100U);
   wrap.tick(24);
   CHECK(std::abs(static_cast<int>(wrap.output().pwm) - 2048) <= 1);
@@ -120,14 +123,14 @@ void smoothChanges() {
 }
 
 void timeAndCurve() {
-  Controller regular, delayed;
+  Controller regular(kTestSettings), delayed(kTestSettings);
   regular.setMode(Mode::Hot, Source::Usb, 0);
   delayed.setMode(Mode::Hot, Source::Usb, 0);
   for (uint32_t t = 1; t <= 123456; ++t) regular.tick(t);
   delayed.tick(123456);
   CHECK(regular.output().pwm == delayed.output().pwm);
   CHECK(regular.phaseMs() == delayed.phaseMs());
-  Controller wrap;
+  Controller wrap(kTestSettings);
   wrap.setMode(Mode::Hot, Source::Usb, UINT32_MAX - 20U);
   const auto phase = wrap.phaseMs();
   wrap.tick(29);
@@ -148,7 +151,7 @@ void timeAndCurve() {
     previous = current;
   }
   bool seen[4096] = {};
-  Controller light;
+  Controller light(kTestSettings);
   light.setMode(Mode::Idle, Source::Usb, 0);
   for (uint32_t t = 0; t < 6000; ++t) {
     light.tick(t);
@@ -164,7 +167,7 @@ void timeAndCurve() {
   CHECK(light.output().pwm == 4095);
   light.tick(9520);
   CHECK(light.output().pwm == 0);
-  Settings calibration;
+  Settings calibration = kTestSettings;
   calibration.redFloor = 0.2f;
   calibration.whiteFloor = 0.1f;
   Controller calibrated(calibration);
@@ -194,10 +197,12 @@ void cycleCadence() {
   // Measure successive peaks from the production output, independently of phaseMs().
   // Multiple service passes and same-mode commands must not make the clock run faster.
   for (bool holds : {false, true})
-  for (uint32_t period : {4800U, 6000U}) for (float floor : {0.0f, 20.0f / 255.0f}) {
-    Settings settings;
-    settings.periodMs = period;
+  for (uint32_t moving : {4800U, 6000U}) for (float floor : {0.0f, 20.0f / 255.0f}) {
+    Settings settings = kTestSettings;
+    settings.riseMs = moving * 35U / 100U;
+    settings.fallMs = moving - settings.riseMs;
     if (!holds) settings.peakHoldMs = settings.floorHoldMs = 0;
+    const uint32_t period = moving + (holds ? 1200U : 0U);
     settings.redFloor = settings.whiteFloor = floor;
     Controller light(settings);
     light.setMode(Mode::Hot, Source::Usb, 0);
@@ -225,7 +230,7 @@ void cycleCadence() {
 }
 
 void breathingHolds() {
-  Controller light;
+  Controller light(kTestSettings);
   light.setMode(Mode::Red, Source::Usb, 0);
   light.tick(250);
   light.setMode(Mode::Hot, Source::Usb, 250);  // Enter from full, without an entry fade.
@@ -249,10 +254,9 @@ void breathingHolds() {
   CHECK(light.output().pwm == 4095);
 
   // Both Gaussian fades must match the old timing after removing the inserted holds.
-  Settings noHolds;
-  noHolds.periodMs = 4800;
+  Settings noHolds = kTestSettings;
   noHolds.peakHoldMs = noHolds.floorHoldMs = 0;
-  Controller reference(noHolds), held;
+  Controller reference(noHolds), held(kTestSettings);
   for (Controller* item : {&reference, &held}) {
     item->setMode(Mode::Red, Source::Usb, 0);
     item->tick(250);
@@ -267,7 +271,7 @@ void breathingHolds() {
   // A steady or off command during either hold responds without waiting for the hold.
   for (uint32_t elapsed : {300U, 3700U}) {
     for (Mode destination : {Mode::Red, Mode::White, Mode::Off}) {
-      Controller interrupted;
+      Controller interrupted(kTestSettings);
       interrupted.setMode(Mode::Hot, Source::Usb, 0);
       interrupted.tick(elapsed);
       const auto before = interrupted.output().pwm;
@@ -282,16 +286,94 @@ void breathingHolds() {
 
   // With only one hold enabled, the other segment must not divide by zero or pause.
   for (bool peakOnly : {false, true}) {
-    Settings single;
-    single.periodMs = 4800 + (peakOnly ? 400 : 800);
+    Settings single = kTestSettings;
+    const uint32_t period = 4800 + (peakOnly ? 400 : 800);
     single.peakHoldMs = peakOnly ? 400 : 0;
     single.floorHoldMs = peakOnly ? 0 : 800;
     Controller partial(single);
     partial.setMode(Mode::Hot, Source::Usb, 0);
-    partial.tick(single.periodMs);
+    partial.tick(period);
     CHECK(partial.output().pwm == 4095);
-    partial.tick(single.periodMs + single.peakHoldMs + 3120);
+    partial.tick(period + single.peakHoldMs + 3120);
     CHECK(partial.output().pwm == 0);
+  }
+}
+
+void independentDurations() {
+  // A 6-second peak and 4-second off hold need no manually adjusted total.
+  // Also check independently chosen rise/fall times, without a fixed 35/65 split.
+  for (const Settings settings : {Settings{1680, 6000, 3120, 4000, 250, 0, 0},
+                                  Settings{900, 6000, 2200, 4000, 250, 0, 0}}) {
+    const uint32_t period = settings.riseMs == 1680 ? 14800U : 13100U;
+    Controller held(settings), delayed(settings);
+    CHECK(held.periodMs() == period);
+    for (Controller* item : {&held, &delayed}) {
+      item->setMode(Mode::Red, Source::Usb, 0);
+      item->tick(250);
+      item->setMode(Mode::Hot, Source::Usb, 250);
+    }
+    // Check two complete settled cycles, including commands within each long hold.
+    for (uint32_t elapsed = 0; elapsed <= 2 * period; ++elapsed) {
+      held.tick(250 + elapsed);
+      const uint32_t inCycle = elapsed % period;
+      if (inCycle < 6000) CHECK(held.output().pwm == kPwmMax);
+      if (inCycle >= 6000 + settings.fallMs && inCycle <= 10000 + settings.fallMs)
+        CHECK(held.output().pwm == 0);
+      if (inCycle == 6050) CHECK(held.output().pwm < kPwmMax);
+      if (inCycle == 10050 + settings.fallMs) CHECK(held.output().pwm > 0);
+      if (inCycle == 3000 || inCycle == 8000 + settings.fallMs) {
+        const auto before = held.output().pwm;
+        const auto mode = held.mode() == Mode::Hot ? Mode::Idle : Mode::Hot;
+        CHECK(held.setMode(mode, Source::Http, 250 + elapsed));
+        CHECK(!held.setMode(mode, Source::Usb, 250 + elapsed));
+        CHECK(held.output().pwm == before);
+      }
+    }
+    delayed.tick(250 + 2 * period);
+    CHECK(held.phaseMs() == delayed.phaseMs());
+    CHECK(held.output().pwm == kPwmMax && delayed.output().pwm == kPwmMax);
+
+    // Extending holds must leave every sample of both moving fades unchanged.
+    Settings noHolds = settings;
+    noHolds.peakHoldMs = noHolds.floorHoldMs = 0;
+    Controller reference(noHolds), withHolds(settings);
+    for (Controller* item : {&reference, &withHolds}) {
+      item->setMode(Mode::White, Source::Usb, 0);
+      item->tick(250);
+      item->setMode(Mode::Idle, Source::Usb, 250);
+    }
+    for (uint32_t elapsed = 0; elapsed <= settings.riseMs + settings.fallMs; ++elapsed) {
+      reference.tick(250 + elapsed);
+      withHolds.tick(250 + elapsed + 6000 + (elapsed >= settings.fallMs ? 4000 : 0));
+      CHECK(reference.output().pwm == withHolds.output().pwm);
+    }
+    // Long holds are still interruptible: a solid color starts fading immediately.
+    for (uint32_t elapsed : {3000U, 8000U + settings.fallMs}) {
+      Controller interrupted(settings);
+      interrupted.setMode(Mode::Hot, Source::Usb, 0);
+      interrupted.tick(elapsed);
+      const auto before = interrupted.output().pwm;
+      interrupted.setMode(Mode::White, Source::Http, elapsed);
+      CHECK(interrupted.output().pwm == before);
+      interrupted.tick(elapsed + 100);
+      CHECK(interrupted.output().pwm > 0);
+      interrupted.tick(elapsed + 250);
+      CHECK(interrupted.output().pwm == kPwmMax);
+      interrupted.setMode(Mode::Off, Source::Usb, elapsed + 250);
+      CHECK(interrupted.output().pwm == 0);
+    }
+  }
+
+  // Runtime callers also cannot create a zero divisor or overflowing cycle.
+  for (const Settings settings : {Settings{0, 0, 0, 0, 250, 0, 0},
+                                  Settings{UINT32_MAX, UINT32_MAX, UINT32_MAX, UINT32_MAX, 250, 0, 0}}) {
+    Controller light(settings);
+    CHECK(light.periodMs() == (settings.riseMs ? 2400000U : 2U));
+    light.setMode(Mode::Hot, Source::Usb, UINT32_MAX - 20U);
+    const auto phase = light.phaseMs();
+    light.tick(29);
+    CHECK(light.phaseMs() == (phase + 50) % light.periodMs());
+    CHECK(light.output().pwm <= kPwmMax);
   }
 }
 
@@ -431,6 +513,7 @@ int main() {
     legacyDistribution();
     cycleCadence();
     breathingHolds();
+    independentDurations();
     serialProtocol();
     httpProtocol();
     fuzzParsers();
