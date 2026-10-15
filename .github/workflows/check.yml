@@ -1,0 +1,37 @@
+name: Check firmware and clients
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Core and firmware integration tests with address/undefined sanitizers
+        run: bash tools/test.sh
+      - name: PowerShell client tests
+        shell: pwsh
+        run: ./tests/test-command.ps1
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Native tests with MSVC
+        shell: cmd
+        run: tools\test-native.cmd
+      - name: Windows PowerShell 5.1 client tests
+        shell: powershell
+        run: ./tests/test-command.ps1
+  firmware:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+        with:
+          version: '1.5.1'
+      - name: Compile UNO R4 WiFi
+        run: arduino-cli compile --profile uno_r4_wifi --warnings all firmware/TallyLight
+      - name: Compile USB-only variant
+        run: arduino-cli compile --profile uno_r4_wifi --warnings all --build-property compiler.cpp.extra_flags=-DTALLY_USB_ONLY firmware/TallyLight
