@@ -116,7 +116,9 @@ PowerShell 5.1 and PowerShell 7 are supported.
 
 `tools/build.ps1` uses a CLI on PATH or the ignored `.tools/arduino-cli/arduino-cli.exe`.
 It optionally reads `.tools/arduino-cli.yaml`, writes to `build/wifi` or `build/usb`, and never
-uploads. Its `-FactoryDefaults` switch excludes local overrides from the build. CI compiles
+uploads. Pass the matching directory to `arduino-cli upload --build-path`; upload alone does
+not recompile changed source. The IDE's Upload button does compile before flashing.
+Its `-FactoryDefaults` switch excludes local overrides from the build. CI compiles
 both variants against the pinned profile. Upstream core 1.6.0 currently emits warnings with
 `--warnings all`; native builds treat warnings in this project's code as errors.
 
@@ -125,3 +127,9 @@ path is too long, even though the file exists. Use a short Arduino data/tool pat
 working copy the official compiler was placed in `.tools/gcc`; the build script recognizes
 that path and overrides `build.compiler_path`. The compiler and CLI configuration are local
 tools, never committed or required by other checkouts.
+
+Local tuning belongs in `firmware/TallyLight/config.local.h`, which takes precedence over
+the guarded defaults in `config.h`. `firmware.cpp::settings()` copies those macros into a
+`Settings` instance and overrides every member default from `controller.hpp`. The header's
+defaults serve standalone controller users and host tests, so changing them is not a board
+configuration change. See the README's tuning and upload steps for the supported workflow.

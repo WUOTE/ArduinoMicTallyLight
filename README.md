@@ -30,11 +30,33 @@ floor on the current setup. If the lamp flickers or cuts out abruptly near zero,
 `TALLY_FLOOR_HOLD_MS`. Holds do not block commands. Set both holds to zero and the period
 to 4800 to restore continuous breathing without plateaus.
 
+## Tuning the settings
+
+Edit `firmware/TallyLight/config.local.h` for local experiments. Keep its existing credential
+definitions/includes and add or update the settings you want to override. For example:
+
+```cpp
+#define TALLY_BREATH_PERIOD_MS 20000U
+#define TALLY_PEAK_HOLD_MS 4000U
+#define TALLY_FLOOR_HOLD_MS 8000U
+```
+
+That test cycle is 20 seconds total: 2.8 s rise, 4 s peak, 5.2 s fall, 8 s floor.
+The default settings remain 6000/400/800 ms when no local override exists.
+
+`config.local.h` overrides the defaults in `config.h`. The firmware copies those macros into
+the controller's settings, replacing the member defaults in `src/controller.hpp`. Editing
+those `.hpp` defaults changes standalone controller/tests behavior, but the firmware still
+uses `config.h` and local overrides. `config.example.h` is only a template until copied.
+Save all edits, then rebuild and upload as described below.
+
 ## Upload
 
 1. Open [`firmware/TallyLight/TallyLight.ino`](firmware/TallyLight/TallyLight.ino) in Arduino IDE.
 2. Install **Arduino UNO R4 Boards 1.6.0**, select **Arduino UNO R4 WiFi**, and select its port.
-3. Upload. A clean checkout works over USB with no Wi-Fi configuration.
+3. Click **Upload**, which compiles and flashes the sketch. **Verify** only compiles.
+   Sources inside `src/` are compiled automatically; the small `.ino` is the entry point.
+   A clean checkout works over USB with no Wi-Fi configuration.
 
 For Wi-Fi, copy [`config.example.h`](firmware/TallyLight/config.example.h) to
 `firmware/TallyLight/config.local.h` and fill in the SSID and password. These local headers
@@ -54,14 +76,35 @@ For a reproducible command-line build, install [Arduino CLI](https://arduino.git
 Or on any supported CLI platform:
 
 ```sh
-arduino-cli compile --profile uno_r4_wifi firmware/TallyLight
-arduino-cli upload --profile uno_r4_wifi --port COM6 firmware/TallyLight
+arduino-cli compile --profile uno_r4_wifi --build-path build/wifi firmware/TallyLight
+arduino-cli upload --profile uno_r4_wifi --port COM6 --build-path build/wifi firmware/TallyLight
 ```
 
-Replace `COM6` with your board's port. Upload is a separate, deliberate step; building and
-running tests never flash the board. `sketch.yaml` pins the core; WiFiS3 comes with it and
+Run upload only after compilation succeeds. Unlike the IDE's Upload button, the CLI's
+[`upload` command](https://arduino.github.io/arduino-cli/1.5/commands/arduino-cli_upload/)
+does **not compile**. Specify the build directory that matches the latest successful build:
+`build/wifi` for `tools/build.ps1`, or `build/usb` for `tools/build.ps1 -UsbOnly`.
+
+For a checkout with the optional local CLI/config installed, this PowerShell sequence builds
+and uploads the USB-only variant from the repository root, stopping if compilation fails:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tools\build.ps1 -UsbOnly
+if ($LASTEXITCODE -eq 0) {
+    & .\.tools\arduino-cli\arduino-cli.exe --config-file .\.tools\arduino-cli.yaml upload --profile uno_r4_wifi --port COM5 --build-path .\build\usb .\firmware\TallyLight
+}
+```
+
+Use your current port in place of `COM5`/`COM6`. Close Serial Monitor or any other program
+holding the port if upload reports access denied. `-UsbOnly` disables Wi-Fi; a normal build
+also supports USB, so it is not required just because commands arrive over USB.
+For the Wi-Fi-capable variant, omit `-UsbOnly` and upload from `build/wifi`.
+
+Upload is a separate, deliberate step; building and running tests never flash the board.
+`sketch.yaml` pins the core; WiFiS3 comes with it and
 there are no third-party library dependencies. `-FactoryDefaults` ignores local configuration
-for build validation. See [development notes](docs/development.md) for Windows path limits.
+for build validation; omit it when testing local tuning. See [development notes](docs/development.md)
+for Windows path limits.
 
 ## Windows commands and Stream Deck
 
