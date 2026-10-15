@@ -10,6 +10,9 @@ with the next lit output, and brightness joins the target over 250 ms by default
 changes carry the breathing phase. `off` extinguishes immediately. Acknowledgements confirm
 the new mode has been selected; they do not wait for a fade to finish. `pwm` may therefore be
 zero or below full brightness in a successful acknowledgement, including for `red`/`white`.
+Breathing takes 6000 ms per cycle by default, including a 400 ms peak hold and an 800 ms
+floor hold. Holds do not delay command processing. Changing between `hot` and `idle` during
+a hold preserves its progress; steady-color and off commands can interrupt it immediately.
 
 ## USB
 

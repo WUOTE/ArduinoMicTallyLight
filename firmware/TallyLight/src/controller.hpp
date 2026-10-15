@@ -19,7 +19,9 @@ float twoPieceNormal(float x);
 float breathEnvelope(float x);
 
 struct Settings {
-  uint32_t periodMs = 4800;
+  uint32_t periodMs = 6000;  // Full cycle, including both holds.
+  uint32_t peakHoldMs = 400;
+  uint32_t floorHoldMs = 800;
   uint32_t transitionMs = 250;
   float redFloor = 0;
   float whiteFloor = 0;
@@ -45,6 +47,7 @@ class Controller {
   uint32_t phaseMs() const { return phaseMs_; }
 
  private:
+  uint32_t riseMs() const;
   float targetDuty() const;
   Settings settings_;
   Mode mode_ = Mode::Off;

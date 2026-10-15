@@ -31,7 +31,14 @@
 #define TALLY_WHITE_FLOOR 0.0f
 #endif
 #ifndef TALLY_BREATH_PERIOD_MS
-#define TALLY_BREATH_PERIOD_MS 4800U
+// Full cycle: 1680 ms rise + 400 ms peak + 3120 ms fall + 800 ms floor.
+#define TALLY_BREATH_PERIOD_MS 6000U
+#endif
+#ifndef TALLY_PEAK_HOLD_MS
+#define TALLY_PEAK_HOLD_MS 400U
+#endif
+#ifndef TALLY_FLOOR_HOLD_MS
+#define TALLY_FLOOR_HOLD_MS 800U
 #endif
 #ifndef TALLY_TRANSITION_MS
 #define TALLY_TRANSITION_MS 250U
@@ -44,6 +51,12 @@ static_assert(TALLY_RED_FLOOR >= 0 && TALLY_RED_FLOOR <= 1, "Red floor must be 0
 static_assert(TALLY_WHITE_FLOOR >= 0 && TALLY_WHITE_FLOOR <= 1, "White floor must be 0..1");
 static_assert(TALLY_BREATH_PERIOD_MS >= 100 && TALLY_BREATH_PERIOD_MS <= 600000,
               "Breath period must be 100..600000 ms");
+static_assert(TALLY_PEAK_HOLD_MS >= 0 && TALLY_PEAK_HOLD_MS <= 600000,
+              "Peak hold must be 0..600000 ms");
+static_assert(TALLY_FLOOR_HOLD_MS >= 0 && TALLY_FLOOR_HOLD_MS <= 600000,
+              "Floor hold must be 0..600000 ms");
+static_assert(TALLY_PEAK_HOLD_MS + TALLY_FLOOR_HOLD_MS <= TALLY_BREATH_PERIOD_MS - 100U,
+              "Holds must leave at least 100 ms for the moving curve");
 static_assert(TALLY_TRANSITION_MS >= 10 && TALLY_TRANSITION_MS <= 5000,
               "Transition must be 10..5000 ms");
 static_assert(TALLY_MODEM_TIMEOUT_MS >= 10 && TALLY_MODEM_TIMEOUT_MS <= 250,

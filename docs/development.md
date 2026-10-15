@@ -27,10 +27,20 @@ value to its peak. This makes the end and start of the cycle meet at the configu
 It removes the legacy three-decimal density rounding and 8-bit intermediate conversion.
 With the old `20/255` floor, the shape differs by at most one 8-bit count at the 400 original
 sample positions; retaining the old rounding instead exactly reproduces all 400 values
-(tested). The zero-floor experiment deliberately extends the range below those old samples.
-Entering breathing from
-a steady/off mode starts the target curve at `x = 1.4`, then follows the slow decay and faster
-rise over a 4800 ms cycle. Switching between `hot` and `idle` carries the current phase.
+(tested). The zero floor deliberately extends the range below those old samples.
+
+The full period is now 6000 ms. Holds take 400 ms at the peak and 800 ms at the floor, leaving
+4800 ms for the original curve: 1680 ms rising and 3120 ms falling. `phaseMs()` counts through
+the complete cycle. The output maps that clock onto four regions: rise, peak hold, fall,
+floor hold. It returns exactly full/floor duty during each hold; there are no delay calls or
+per-frame counters. Delayed frames skip to the correct position even across several regions.
+The fade samples match the version without holds when the inserted hold times are removed.
+
+`TALLY_BREATH_PERIOD_MS` includes both `TALLY_PEAK_HOLD_MS` and `TALLY_FLOOR_HOLD_MS`.
+The remaining time is split 35% rise / 65% fall, preserving the distribution's asymmetry.
+Either hold may be zero; the configuration must leave at least 100 ms for the moving curve.
+Entering breathing from a steady/off mode starts at the beginning of the peak hold.
+Switching between `hot` and `idle` carries the current phase, including time spent in a hold.
 
 A mode change records the difference between the displayed duty and the new target duty.
 That correction decays to zero over `TALLY_TRANSITION_MS` (250 ms by default):
@@ -46,11 +56,13 @@ breathing colors keep the same curve, apart from a correction of at most half a 
 and any lag since the last hardware frame. Unequal floors settle without a command-time
 jump. A new command starts from the currently displayed duty, including an unfinished
 transition. Repeated modes do not restart anything. `off` cancels the transition immediately.
+The entry transition can overlap the first peak hold; later settled cycles have the full
+400 ms plateau. Steady/off commands during a hold take effect without waiting for its end.
 
 Brightness is normalized floating-point duty until `round(duty * 4095)`. Full brightness
 is 4095, not 4096. Both per-color floors default to zero, retained after the owner's successful
-physical test. They are duty
-ratios: restoring the previous `20/255` floor gives about 321 at 12 bits. Floors apply to the
+physical test. They are duty ratios: restoring the previous `20/255` floor gives about 321
+at 12 bits. Floors apply to the
 settled breathing curve; entry from off and changes between different floors can temporarily
 go below that floor. The hardware PWM carrier is separate from the animation frame rate and remains
 the pinned core's approximately 490 Hz default. See Arduino's [analog implementation](https://github.com/arduino/ArduinoCore-renesas/blob/1.6.0/cores/arduino/analog.cpp)
@@ -90,7 +102,8 @@ under GCC/Clang with address and undefined-behavior sanitizers. The integration 
 cover online, offline and absent-modem startup, USB priority, malformed/fragmented HTTP,
 backpressure, response lengths, reconnect/DHCP waits and disabled-before-reverse pin ordering.
 The core suite checks all 25 mode transitions at multiple brightnesses, interrupted fades,
-phase continuity, zero-floor cycles, peak-to-peak timing with repeated service calls and
+phase continuity, hold boundaries and interruption, zero-floor cycles, peak-to-peak timing
+with and without holds, repeated service calls and
 commands, 400 legacy samples, clock wrap and 10,000
 deterministic parser fuzz cases. Fakes test scheduling intent, not physical device behavior.
 MSVC's optional AddressSanitizer run is `tools/test-native.cmd asan` (requires that Visual

@@ -65,7 +65,12 @@ float breathEnvelope(float x) {
 }
 
 Controller::Controller(Settings settings) : settings_(settings) {
-  if (settings_.periodMs < 100 || settings_.periodMs > 600000) settings_.periodMs = 4800;
+  if (settings_.periodMs < 100 || settings_.periodMs > 600000) settings_.periodMs = 6000;
+  // Keep at least 100 ms of moving curve; avoid overflow for invalid settings.
+  if (settings_.peakHoldMs > settings_.periodMs - 100 ||
+      settings_.floorHoldMs > settings_.periodMs - 100 - settings_.peakHoldMs) {
+    settings_.peakHoldMs = settings_.floorHoldMs = 0;
+  }
   if (settings_.transitionMs < 10 || settings_.transitionMs > 5000) settings_.transitionMs = 250;
   if (!isfinite(settings_.redFloor)) settings_.redFloor = 0;
   if (!isfinite(settings_.whiteFloor)) settings_.whiteFloor = 0;
@@ -97,7 +102,7 @@ bool Controller::setMode(Mode mode, Source source, uint32_t now, uint16_t displa
   mode_ = mode;
   ++revision_;
   if (breathing(mode_) && !wasBreathing) {
-    phaseMs_ = settings_.periodMs * 35U / 100U;  // Enter the curve at its peak.
+    phaseMs_ = riseMs();  // Enter at the start of the peak hold.
   }
   // Carry the phase between breathing colors. A short correction starts the new
   // curve/solid at the actual displayed duty, including interrupted transitions
@@ -108,11 +113,25 @@ bool Controller::setMode(Mode mode, Source source, uint32_t now, uint16_t displa
   return true;
 }
 
+uint32_t Controller::riseMs() const {
+  const uint32_t movingMs = settings_.periodMs - settings_.peakHoldMs - settings_.floorHoldMs;
+  return movingMs * 35U / 100U;  // Original peak at x = 1.4 on a 0..4 curve.
+}
+
 float Controller::targetDuty() const {
   if (mode_ == Mode::Off) return 0;
   if (!breathing(mode_)) return 1;
   const float floor = mode_ == Mode::Hot ? settings_.redFloor : settings_.whiteFloor;
-  const float x = 4.0f * static_cast<float>(phaseMs_) / static_cast<float>(settings_.periodMs);
+  const uint32_t rise = riseMs();
+  const uint32_t peakEnd = rise + settings_.peakHoldMs;
+  const uint32_t fallEnd = settings_.periodMs - settings_.floorHoldMs;
+  // Holds are regions of the cycle clock, never blocking waits. A late frame can
+  // cross any number of regions without stretching the cycle or delaying commands.
+  if (phaseMs_ >= fallEnd) return floor;
+  if (phaseMs_ >= rise && phaseMs_ < peakEnd) return 1;
+  const float x = phaseMs_ < rise ?
+      1.4f * static_cast<float>(phaseMs_) / rise :
+      1.4f + 2.6f * static_cast<float>(phaseMs_ - peakEnd) / (fallEnd - peakEnd);
   return floor + (1.0f - floor) * breathEnvelope(x);
 }
 

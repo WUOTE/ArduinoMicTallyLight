@@ -21,6 +21,8 @@ constexpr uint32_t kFrameMs = 10;
 Settings settings() {
   Settings s;
   s.periodMs = TALLY_BREATH_PERIOD_MS;
+  s.peakHoldMs = TALLY_PEAK_HOLD_MS;
+  s.floorHoldMs = TALLY_FLOOR_HOLD_MS;
   s.transitionMs = TALLY_TRANSITION_MS;
   s.redFloor = TALLY_RED_FLOOR;
   s.whiteFloor = TALLY_WHITE_FLOOR;

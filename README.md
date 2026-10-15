@@ -17,13 +17,18 @@ The last valid command processed wins, whether it came from USB or HTTP.
 | `red` | Fade from the current brightness to steady full red |
 | `white` | Fade from the current brightness to steady full white |
 
-Breathing uses the original two-piece Gaussian shape, a 4.8-second period, 100 Hz animation
-updates and 12-bit PWM (`0..4095`). No lookup table is used in production. Both breathing
+Breathing uses the original two-piece Gaussian shape in a **6-second cycle**: 1.68 s rise,
+0.40 s at full brightness, 3.12 s fall, and 0.80 s at the floor. Animation updates at 100 Hz
+with 12-bit PWM (`0..4095`). No lookup table is used in production. Both breathing
 floors are **zero**: each cycle can go completely dark. The owner reports no flicker at this
-floor on the current setup. If the lamp
-flickers or cuts out abruptly near zero, raise `TALLY_RED_FLOOR` or `TALLY_WHITE_FLOOR` in
+floor on the current setup. If the lamp flickers or cuts out abruptly near zero, raise
+`TALLY_RED_FLOOR` or `TALLY_WHITE_FLOOR` in
 `config.local.h`; the previous setting was `(20.0f / 255.0f)`, about 7.84% duty.
 `TALLY_TRANSITION_MS` controls the 250 ms transition. `off` still takes effect immediately.
+
+`TALLY_BREATH_PERIOD_MS` is the complete cycle, including `TALLY_PEAK_HOLD_MS` and
+`TALLY_FLOOR_HOLD_MS`. Holds do not block commands. Set both holds to zero and the period
+to 4800 to restore continuous breathing without plateaus.
 
 ## Upload
 

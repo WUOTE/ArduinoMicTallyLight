@@ -58,19 +58,23 @@ the board and shield hardware; host tests cannot certify it.
 2. Send `red`, `white`, and `off`. Check the actual colors, the 250 ms fade from off to full
    output, and immediate off. If reversed,
    set `TALLY_RED_DIRECTION_HIGH` in the ignored local configuration and rebuild.
-3. Send `red`, then `hot`: brightness should continue from full into the falling breath.
+3. Send `red`, then `hot`: brightness should stay full for 400 ms, then begin falling.
    Switch `hot` to `idle` on both the rising and falling sides: color should change without
    a jump to full brightness or a cycle restart. Switch a dim breath to `red` or `white`:
    it should keep that duty initially and fade to full in 250 ms. Interrupt a fade with
-   another mode and check that it starts at the current duty. `off` should extinguish it.
+   another mode and check that it starts at the current duty. During the dark hold, `red`
+   or `white` should start fading up immediately; `off` should extinguish immediately from
+   the peak hold.
 4. Repeat the same breathing command mid-cycle. The phase should continue. Alternate USB
    and HTTP commands; the latest valid command should determine both status and output.
 5. Leave Wi-Fi unavailable or disconnect the access point. Check USB changes and breathing
    while reconnects happen. Read `status` and record `max_service_gap_ms`. Compare a
    `-UsbOnly` build if network pauses are still visible.
 6. Watch several complete cycles in both colors, especially where they reach darkness and
-   resume. Zero PWM is an intentional dark part of the cycle. Look for irregular flashes,
-   an abrupt cutoff above zero, or a delayed relight. If either color behaves poorly, restore
+   resume. After the initial transition, a cycle takes 6 seconds, including a 400 ms hold
+   at full brightness and an 800 ms hold at zero. These plateaus are intentional. Look for
+   irregular flashes, an abrupt cutoff above zero, or an unexpectedly delayed relight.
+   If either color behaves poorly, restore
    its `TALLY_RED_FLOOR` / `TALLY_WHITE_FLOOR` in `config.local.h` to `(20.0f / 255.0f)` and
    rebuild, or test a small nonzero floor such as `0.01f`. If flicker remains, measure the
    adapter and voltage across channel B at **steady full output** in each polarity. A
